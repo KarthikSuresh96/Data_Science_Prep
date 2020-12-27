@@ -1,0 +1,97 @@
+#Goal to find if the Google Playstore rating is higher than Apple App store ratings
+
+#Importing necesary libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
+import random
+
+# Reading the necessary csv file into a data frame.
+Google = pd.read_csv("googleplaystore.csv")
+Google.head()
+
+Apple = pd.read_csv('AppleStore.csv')
+Apple.head()
+
+#Subsetting necessary headings
+Google = Google[['Category', 'Rating', 'Reviews', 'Price']]
+Google.head(3)
+Apple = Apple[['prime_genre', 'user_rating', 'rating_count_tot','price']]
+Apple.head(3)
+
+#Checking df types.
+Apple.dtypes
+Google.dtypes
+
+#Changing type of Price from object to numeric
+Google['Price'].unique()
+Google[Google['Price']=='Everyone']
+Google = Google[Google['Price'] != 'Everyone']
+Google['Price'].unique()
+nosymb = Google['Price'].str.replace("$",'')
+Google['Price'] = pd.to_numeric(nosymb)
+Google['Reviews'] = pd.to_numeric(Google['Reviews'])
+
+#Adding the google and apple databases
+Apple['platform'] = 'apple'
+Google['platform'] = 'google'
+
+old_names = Apple.columns
+new_names = Google.columns
+Apple = Apple.rename(columns = dict(zip(old_names,new_names)))
+df = Google.append(Apple, ignore_index = True)
+df.sample(12)
+
+#Removing NaN Values from the combined dataframe.
+print(df.shape)
+df =  df.dropna()
+print(df.shape)
+
+#Eliminating the reviews with 0 ratings
+df[df['Reviews'] == 0].count()
+df = df[df['Reviews'] != 0]
+
+#Observing the data
+df.groupby(by='platform')['Rating'].describe()
+df.boxplot(by='platform', column =['Rating'], grid=False, rot=45, fontsize=15)
+
+#Subsetting the ratings alone for apple and google
+apple = df[df['platform'] == 'apple']['Rating']
+google = df[df['platform'] == 'google']['Rating']
+
+#Testing if the ratings are normally distributed
+apple_normal = stats.normaltest(apple)
+print(apple_normal)
+google_normal = stats.normaltest(google)
+print(google_normal)
+histoApple = plt.hist(apple)
+histoGoogle = plt.hist(google)
+
+#Since data not normally distributed, we are chosing a non parametric method
+
+df['Permutation1'] = np.random.permutation(df['Rating'])
+df.groupby(by='platform')['Permutation1'].describe()
+
+difference = list()
+for i in range(1000):
+    permutation = np.random.permutation(df['Rating'])
+    difference.append(np.mean(permutation[df['platform']=='apple']) - np.mean(permutation[df['platform']=='google']))
+    
+histo = plt.hist(difference)
+obs_difference = np.mean(apple) - np.mean(google)
+obs_difference = abs(obs_difference)
+
+positiveExtremes = []
+negativeExtremes = []
+for i in range(len(difference)):
+    if (difference[i] >= obs_difference):
+        positiveExtremes.append(difference[i])
+    elif (difference[i] <= -obs_difference):
+        negativeExtremes.append(difference[i])
+
+print(len(positiveExtremes))
+print(len(negativeExtremes))
+
+#Since we have no value in the extremes, we have significant difference between the two. 
+#We take google playstore values to be higher and we use only that values.
